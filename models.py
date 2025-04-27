@@ -1,17 +1,20 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
 from database import Base
 
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, unique=True)
     first_name = Column(String, nullable=True, index=True)
     last_name = Column(String, nullable=True, index=True)
     username = Column(String, unique=True, index=True)
+    password = Column(String, nullable=False, index=True)
     email = Column(String, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_modified = Column(DateTime(timezone=True), onupdate=func.now())
 
     cart = relationship("Cart", back_populates="user", uselist=False)
     addresses = relationship("Address", back_populates="user")

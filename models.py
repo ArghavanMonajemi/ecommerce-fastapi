@@ -47,6 +47,9 @@ class Product(Base):
     name = Column(String, index=True)
     price = Column(Float)
     stock = Column(Integer)
+    description = Column(String, nullable=True)
+    image_url = Column(String, nullable=True)
+    last_modified = Column(DateTime(timezone=True), server_default=func.now(),server_onupdate=func.now())
 
 
 class Adress(Base):

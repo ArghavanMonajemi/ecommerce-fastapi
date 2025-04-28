@@ -27,7 +27,7 @@ async def create_user(db: AsyncSession, user: UserCreate):
     try:
         hashed_password = security.hash_password(user.password)
         db_user = User(username=user.username, email=user.email, password=hashed_password, first_name=user.first_name,
-                       last_name=user.last_name)
+                       last_name=user.last_name, is_admin=user.is_admin)
         db.add(db_user)
         await db.commit()
         await db.refresh(db_user)
@@ -93,9 +93,11 @@ async def get_all_product(db: AsyncSession):
     result = await db.execute(select(Product))
     return result.scalars().all
 
+
 async def get_all_product_by_name(db: AsyncSession, name: str):
     result = await db.execute(select(Product).where(Product.name == name))
     return result.scalars().all()
+
 
 async def update_product(db: AsyncSession, product_update: ProductUpdate, product_id: int):
     try:

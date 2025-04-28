@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -15,6 +15,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_modified = Column(DateTime(timezone=True), onupdate=func.now())
+    is_admin = Column(Boolean, nullable=False, default=False)
 
     cart = relationship("Cart", back_populates="user", uselist=False)
     addresses = relationship("Address", back_populates="user")
@@ -49,7 +50,7 @@ class Product(Base):
     stock = Column(Integer)
     description = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
-    last_modified = Column(DateTime(timezone=True), server_default=func.now(),server_onupdate=func.now())
+    last_modified = Column(DateTime(timezone=True), server_default=func.now(), server_onupdate=func.now())
 
 
 class Adress(Base):

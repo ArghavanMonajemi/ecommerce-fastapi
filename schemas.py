@@ -8,6 +8,7 @@ class UserBase(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
+    is_admin: bool
 
 
 class UserCreate(UserBase):
@@ -33,6 +34,7 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
     password: Optional[str] = None
+    is_admin: Optional[bool] = None
 
 
 class Token(BaseModel):

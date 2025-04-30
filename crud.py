@@ -1,11 +1,15 @@
 from datetime import datetime
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from models import User, Product
-from schemas import UserCreate, UserUpdate, ProductCreate, ProductUpdate
+from models import User, Product, Cart, CartItem
+from schemas import UserCreate, UserUpdate, ProductCreate, ProductUpdate, CartCreate, CartUpdate, CartItemCreate, \
+    CartItemUpdate
 from fastapi import HTTPException
 import utils.security as security
+from typing import List, Type, Any
+from sqlalchemy.sql import Select
+from sqlalchemy.orm import DeclarativeMeta
+from utils.enums import CartStatus
 
 
 async def get_user_by_username(db: AsyncSession, username: str):
@@ -18,8 +22,8 @@ async def get_user_by_email(db: AsyncSession, email: str):
     return result.scalars().first()
 
 
-async def get_user_by_id(db: AsyncSession, id: int):
-    result = await db.execute(select(User).where(User.id == id))
+async def get_user_by_id(db: AsyncSession, user_id: int):
+    result = await db.execute(select(User).where(User.id == user_id))
     return result.scalars().first()
 
 
@@ -39,7 +43,7 @@ async def create_user(db: AsyncSession, user: UserCreate):
 
 async def update_user(db: AsyncSession, user_update: UserUpdate, user_id: int):
     try:
-        user = get_user_by_id(db, user_id)
+        user = await get_user_by_id(db, user_id)
         if user is None:
             return False
         update_data = user_update.model_dump(exclude_unset=True)
@@ -59,9 +63,9 @@ async def update_user(db: AsyncSession, user_update: UserUpdate, user_id: int):
         raise HTTPException(status_code=500, detail="Failed to update the user. ERROR:" + str(e))
 
 
-async def delete_user(db: AsyncSession, id: int):
+async def delete_user(db: AsyncSession, user_id: int):
     try:
-        user = get_user_by_id(db, id)
+        user = await get_user_by_id(db, user_id)
         if user is not None:
             return False
 
@@ -79,13 +83,15 @@ async def create_product(db: AsyncSession, product: ProductCreate):
                              stock=product.stock, image_url=product.image_url)
         db.add(db_product)
         await db.commit()
+        await db.refresh(db_product)
+        return db_product
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create the product. ERROR:" + str(e))
 
 
-async def get_product_by_id(db: AsyncSession, id: int):
-    result = await db.execute(select(Product).where(Product.id == id))
+async def get_product_by_id(db: AsyncSession, product_id: int):
+    result = await db.execute(select(Product).where(Product.id == product_id))
     return result.scalars().first()
 
 
@@ -121,7 +127,7 @@ async def update_product(db: AsyncSession, product_update: ProductUpdate, produc
 
 async def delete_product(db: AsyncSession, product_id: int):
     try:
-        product = get_product_by_id(db, product_id)
+        product = await get_product_by_id(db, product_id)
         if product is None:
             return False
         await db.delete(product)
@@ -129,3 +135,126 @@ async def delete_product(db: AsyncSession, product_id: int):
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete the product. ERROR:" + str(e))
+
+
+async def get_cart_item(db: AsyncSession, cart_item_id: int):
+    cart_item = await db.execute(select(CartItem).where(CartItem.id == cart_item_id))
+    return cart_item.scalars().first()
+
+
+async def get_cart_cart_items(db: AsyncSession, cart_id: int):
+    items = await db.execute(select(CartItem).where(CartItem.cart_id == cart_id))
+    return items.scalars().all()
+
+
+async def update_cart_item(db: AsyncSession, cart_item_update: CartItemUpdate, cart_item_id: int):
+    try:
+        item = await get_cart_item(db, cart_item_id)
+        if item is None:
+            return False
+        update_data = cart_item_update.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(item, key, value)
+        await db.commit()
+        await db.refresh(item)
+        return True
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update the cart item. ERROR:" + str(e))
+
+
+async def create_cart_item(db: AsyncSession, item: CartItemCreate):
+    try:
+        items = await get_cart_cart_items(db, item.cart_id)
+        for i in items:
+            if i.product_id == item.product_id:
+                update_item = CartItemUpdate(quantity=i.quantity + item.quantity)
+                return await update_cart_item(db, update_item, i.id)
+        db_item = CartItem(cart_id=item.cart_id, product_id=item.product_id, quantity=item.quantity)
+        db.add(db_item)
+        await db.commit()
+        await db.refresh(db_item)
+        return db_item
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create the cart item. ERROR:" + str(e))
+
+
+async def delete_cart_item(db: AsyncSession, cart_item_id: int):
+    try:
+        item = await get_cart_item(db, cart_item_id)
+        if item is None:
+            return False
+        await db.delete(item)
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete the cart item. ERROR:" + str(e))
+
+
+async def create_cart(db: AsyncSession, cart: CartCreate):
+    try:
+        open_cart = await select_with_filter(db, Cart, Cart.status == CartStatus.OPEN, Cart.user_id == cart.user_id)
+        if open_cart is None:
+            db_cart = Cart(user_id=cart.user_id, status=cart.status)
+            db.add(db_cart)
+            await db.commit()
+            await db.refresh(db_cart)
+            return db_cart
+        else:
+            return open_cart
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create the cart. ERROR:" + str(e))
+
+
+async def get_cart(db: AsyncSession, cart_id: int):
+    cart = await db.execute(select(Cart).where(Cart.id == cart_id))
+    return cart.scalars().first()
+
+async def get_user_carts(db: AsyncSession, user_id: int):
+    carts = await db.execute(select(Cart).where(Cart.user_id == user_id))
+    return carts.scalars().all()
+
+async def update_cart(db: AsyncSession, cart_update: CartUpdate, cart_id: int):
+    try:
+        cart = await get_cart(db, cart_id)
+        if cart is None:
+            return False
+        update_data = cart_update.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(cart, key, value)
+        await db.commit()
+        await db.refresh(cart)
+        return True
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update the cart. ERROR:" + str(e))
+
+
+async def delete_cart(db: AsyncSession, cart_id: int):
+    try:
+        cart = await get_cart(db, cart_id)
+        if cart is None:
+            return False
+        await db.delete(cart)
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete the cart. ERROR:" + str(e))
+
+
+async def select_with_filter(
+        db: AsyncSession,
+        model: Type[DeclarativeMeta],
+        *filters,
+        order_by: Any = None
+) -> List[Any]:
+    stmt: Select = select(model).where(*filters)
+    if order_by:
+        stmt = stmt.order_by(order_by)
+
+    result = await db.execute(stmt)
+    return result.scalars().all()

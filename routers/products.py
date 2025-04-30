@@ -4,7 +4,6 @@ from database import get_db
 from schemas import ProductCreate, ProductUpdate, ProductOut
 import crud
 from utils.dependencies import get_current_user
-from models import Product
 
 router = APIRouter(prefix="/products", tags=["Products"])
 

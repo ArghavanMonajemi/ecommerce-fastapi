@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func, Boolean
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func, Boolean, Enum
 from sqlalchemy.orm import relationship
 from database import Base
+from utils.enums import CartStatus
 
 
 class User(Base):
@@ -17,7 +18,7 @@ class User(Base):
     last_modified = Column(DateTime(timezone=True), onupdate=func.now())
     is_admin = Column(Boolean, nullable=False, default=False)
 
-    cart = relationship("Cart", back_populates="user", uselist=False)
+    carts = relationship("Cart", back_populates="user")
     addresses = relationship("Address", back_populates="user")
 
 
@@ -25,10 +26,12 @@ class Cart(Base):
     __tablename__ = 'carts'
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    creat_time = Column(DateTime, index=True, default=datetime.now, nullable=False)
+    created_at = Column(DateTime, index=True, default=func.now, nullable=False)
+    status = Column(Enum(CartStatus), default=CartStatus.OPEN, index=True)
+    total_price = Column(Float)
 
-    user = relationship("User", back_populates="cart")
     items = relationship("CartItem", back_populates="cart")
+    user = relationship("User", back_populates="carts")
 
 
 class CartItem(Base):
@@ -37,9 +40,9 @@ class CartItem(Base):
     cart_id = Column(Integer, ForeignKey("carts.id"))
     product_id = Column(Integer, ForeignKey("products.id"))
     quantity = Column(Integer, nullable=False)
-    price = Column(Float, nullable=False)
 
     cart = relationship("Cart", back_populates="items")
+    product = relationship("Product")
 
 
 class Product(Base):
@@ -53,10 +56,12 @@ class Product(Base):
     last_modified = Column(DateTime(timezone=True), server_default=func.now(), server_onupdate=func.now())
 
 
-class Adress(Base):
+class Address(Base):
     __tablename__ = 'addresses'
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     country = Column(String, nullable=False, index=True)
     city = Column(String, nullable=False, index=True)
     address = Column(String, index=True, nullable=False)
+
+    user = relationship("User", back_populates="addresses")

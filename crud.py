@@ -1,9 +1,9 @@
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from models import User, Product, Cart, CartItem
+from models import User, Product, Cart, CartItem, Address
 from schemas import UserCreate, UserUpdate, ProductCreate, ProductUpdate, CartCreate, CartUpdate, CartItemCreate, \
-    CartItemUpdate
+    CartItemUpdate, AddressCreate, AddressUpdate
 from fastapi import HTTPException
 import utils.security as security
 from typing import List, Type, Any
@@ -213,9 +213,11 @@ async def get_cart(db: AsyncSession, cart_id: int):
     cart = await db.execute(select(Cart).where(Cart.id == cart_id))
     return cart.scalars().first()
 
+
 async def get_user_carts(db: AsyncSession, user_id: int):
     carts = await db.execute(select(Cart).where(Cart.user_id == user_id))
     return carts.scalars().all()
+
 
 async def update_cart(db: AsyncSession, cart_update: CartUpdate, cart_id: int):
     try:
@@ -244,6 +246,60 @@ async def delete_cart(db: AsyncSession, cart_id: int):
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete the cart. ERROR:" + str(e))
+
+
+async def create_address(db: AsyncSession, address: AddressCreate):
+    if get_user_by_id(db, address.user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        db_address = Address(user_id=address.user_id, country=address.country, city=address.city,
+                             address=address.address)
+        db.add(db_address)
+        await db.commit()
+        await db.refresh(db_address)
+        return db_address
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create the address. ERROR:" + str(e))
+
+
+async def get_address(db: AsyncSession, address_id: int):
+    result = await db.execute(select(Address).where(Address.id == address_id))
+    return result.scalars().first()
+
+
+async def get_user_all_address(db: AsyncSession, user_id: int):
+    result = await db.execute(select(Address).where(Address.user_id == user_id))
+    return result.scalars().all()
+
+
+async def update_address(db: AsyncSession, address_update: AddressUpdate, address_id: int):
+    address = await get_address(db, address_id)
+    if address is None:
+        raise HTTPException(status_code=404, detail="Address not found")
+    try:
+        update_data = address_update.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(address, key, value)
+        await db.commit()
+        await db.refresh(address)
+        return address
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update the address. ERROR:" + str(e))
+
+
+async def delete_address(db: AsyncSession, address_id: int):
+    try:
+        address = await get_address(db, address_id)
+        if address is None:
+            return False
+        await db.delete(address)
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete the address. ERROR:" + str(e))
 
 
 async def select_with_filter(

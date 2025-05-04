@@ -128,7 +128,6 @@ class AddressOut(AddressCreate):
 
 
 class AddressUpdate(BaseModel):
-    user_id: Optional[int] = None
     country: Optional[str] = None
     city: Optional[str] = None
     address: Optional[str] = None

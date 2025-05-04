@@ -69,6 +69,16 @@ async def get_user_by_email(user_email: str, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
+@router.get("/{user_id}/addresses")
+async def get_user_addresses(user_id: int,db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user = await crud.get_user_by_id(db, user_id)
+    if not current_user.is_admin or current_user.id != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    addresses = await crud.get_user_addresses(db, user_id)
+    return addresses
+
 
 @router.put("/{user_id}")
 async def update_user(user_id: int, user_data: UserUpdate, db: AsyncSession = Depends(get_db)):

@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select, join
+from sqlalchemy.orm import aliased
 from models import User, Product, Cart, CartItem, Address
 from schemas import UserCreate, UserUpdate, ProductCreate, ProductUpdate, CartCreate, CartUpdate, CartItemCreate, \
     CartItemUpdate, AddressCreate, AddressUpdate
@@ -230,7 +231,6 @@ async def update_cart(db: AsyncSession, cart_update: CartUpdate, cart_id: int):
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update the cart. ERROR:" + str(e))
 
-
 async def delete_cart(db: AsyncSession, cart_id: int):
     try:
         cart = await get_cart(db, cart_id)
@@ -263,6 +263,9 @@ async def get_address(db: AsyncSession, address_id: int):
     result = await db.execute(select(Address).where(Address.id == address_id))
     return result.scalars().first()
 
+async def get_user_addresses(db: AsyncSession, user_id: int):
+    result = await db.execute(select(Address).join(User,User.id == Address.user_id))
+    return result.scalars().all()
 
 async def get_user_all_address(db: AsyncSession, user_id: int):
     result = await db.execute(select(Address).where(Address.user_id == user_id))

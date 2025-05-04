@@ -14,13 +14,13 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post("/register", response_model=UserOut)
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
-    existing_user = crud.get_user_by_username(db, user_data.username)
+    existing_user = await crud.get_user_by_username(db, user_data.username)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
-    user = crud.create_user(db, user_data)
+    user = await crud.create_user(db, user_data)
     return user
 
 
@@ -29,8 +29,8 @@ async def login(
         form_data: OAuth2PasswordRequestForm = Depends(),
         db: AsyncSession = Depends(get_db)
 ):
-    user = crud.get_user_by_username(db, form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    user = await crud.get_user_by_username(db, form_data.username)
+    if user is None or not verify_password(form_data.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -46,36 +46,36 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-@router.get("{user_id}")
+@router.get("/{user_id}")
 async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db)):
-    user = crud.get_user_by_id(db, user_id)
+    user = await crud.get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
 
-@router.get("{user_name}")
+@router.get("/{user_name}")
 async def get_user_by_username(user_name: str, db: AsyncSession = Depends(get_db)):
-    user = crud.get_user_by_username(db, user_name)
+    user = await crud.get_user_by_username(db, user_name)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
 
-@router.get("{user_email}")
+@router.get("/by_email/")
 async def get_user_by_email(user_email: str, db: AsyncSession = Depends(get_db)):
-    user = crud.get_user_by_email(db, user_email)
+    user = await crud.get_user_by_email(db, user_email)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
 
-@router.put("{user_id}")
+@router.put("/{user_id}")
 async def update_user(user_id: int, user_data: UserUpdate, db: AsyncSession = Depends(get_db)):
     user = await crud.get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return crud.update_user(db, user_data, user_id)
+    return await crud.update_user(db, user_data, user_id)
 
 
 @router.delete("/{user_id}")
@@ -83,4 +83,4 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
     user = await crud.get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return crud.delete_user(db, user_id)
+    return await crud.delete_user(db, user)

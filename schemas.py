@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional, List
 from utils.enums import CartStatus
@@ -8,7 +8,7 @@ class UserBase(BaseModel):
     username: str
     first_name: str
     last_name: str
-    email: EmailStr
+    email: str
     is_admin: bool
 
 
@@ -26,14 +26,14 @@ class UserOut(UserBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     password: Optional[str] = None
     is_admin: Optional[bool] = None
 
@@ -72,7 +72,7 @@ class ProductOut(BaseModel):
     image_url: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class CartItemCreate(BaseModel):
@@ -85,7 +85,7 @@ class CartItemOut(CartItemCreate):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class CartItemUpdate(BaseModel):
@@ -104,7 +104,7 @@ class CartOut(CartCreate):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class CartUpdate(BaseModel):
@@ -122,6 +122,9 @@ class AddressCreate(BaseModel):
 
 class AddressOut(AddressCreate):
     id: int
+
+    class Config:
+        from_attributes = True
 
 
 class AddressUpdate(BaseModel):

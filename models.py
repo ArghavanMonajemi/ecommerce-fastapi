@@ -15,7 +15,7 @@ class User(Base):
     password = Column(String, nullable=False, index=True)
     email = Column(String, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    last_modified = Column(DateTime(timezone=True), onupdate=func.now())
+    last_modified = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
     is_admin = Column(Boolean, nullable=False, default=False)
 
     carts = relationship("Cart", back_populates="user")

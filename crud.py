@@ -63,12 +63,8 @@ async def update_user(db: AsyncSession, user_update: UserUpdate, user_id: int):
         raise HTTPException(status_code=500, detail="Failed to update the user. ERROR:" + str(e))
 
 
-async def delete_user(db: AsyncSession, user_id: int):
+async def delete_user(db: AsyncSession, user):
     try:
-        user = await get_user_by_id(db, user_id)
-        if user is not None:
-            return False
-
         await db.delete(user)
         await db.commit()
         return True

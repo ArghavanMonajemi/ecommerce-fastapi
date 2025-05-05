@@ -25,10 +25,10 @@ class User(Base):
 class Cart(Base):
     __tablename__ = 'carts'
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"),nullable=False)
     created_at = Column(DateTime, index=True, default=func.now, nullable=False)
     status = Column(Enum(CartStatus), default=CartStatus.OPEN, index=True)
-    total_price = Column(Float)
+    total_price = Column(Float, default=0)
 
     items = relationship("CartItem", back_populates="cart")
     user = relationship("User", back_populates="carts")

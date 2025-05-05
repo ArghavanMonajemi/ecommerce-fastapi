@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
-from schemas import CartCreate, CartUpdate, CartOut, CartItemOut
+from schemas import CartCreate, CartUpdate, CartOut, CartItemOut, ProductUpdate
 import crud
 from models import Cart, User
 from utils.enums import CartStatus
@@ -33,13 +33,14 @@ async def get_user_open_cart(current_user: User = Depends(get_current_user), db:
     user = await crud.get_user_by_id(db, current_user.id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    cart = await crud.select_with_filter(db, Cart, Cart.status == CartStatus.OPEN, Cart.user_id == current_user.id)
+    cart = await crud.get_user_open_cart(db,current_user.id)
     return cart
 
 
 @router.post("/add_cart", response_model=CartOut)
-async def add_cart(cart: CartCreate, db: AsyncSession = Depends(get_db)):
-    open_cart = get_user_open_cart(cart.user_id, db)
+async def add_cart(cart: CartCreate, db: AsyncSession = Depends(get_db),
+                   current_user: User = Depends(get_current_user)):
+    open_cart = await get_user_open_cart(current_user, db)
     if open_cart is not None:
         return open_cart
     open_cart = await crud.create_cart(db, cart)
@@ -65,7 +66,7 @@ async def delete_user_all_cart(current_user: User = Depends(get_current_user), d
         raise HTTPException(status_code=404, detail="User not found")
     carts = await crud.get_user_carts(db, current_user.id)
     for cart in carts:
-        await delete_cart(cart.user_id, db)
+        await delete_cart(cart.id, db)
 
 
 @router.put("/{cart_id}", response_model=CartOut)
@@ -89,12 +90,17 @@ async def checkout(
     for item in cart.items:
         price += item.price
     new_cart = CartUpdate(status=CartStatus.CHECKED_OUT, total_price=price)
-    await crud.update_cart(db, new_cart, cart.id)
+    cart = await crud.update_cart(db, new_cart, cart.id)
+    if cart is not None:
+        for item in cart.items:
+            product = await crud.get_product_by_id(db,item.id)
+            new_product = ProductUpdate(stock=product.stock - item.stock)
+            await crud.update_product(db, new_product, item.id)
     return {"message": "Checkout successful (mocked)"}
 
 
 @router.put("/cart/cancel")
-async def cancel_cart(cart_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def cancel_cart(cart_id: int, db: AsyncSession = Depends(get_db)):
     cart = await crud.get_cart(db, cart_id)
     if cart is None:
         raise HTTPException(status_code=404, detail="Cart not found")

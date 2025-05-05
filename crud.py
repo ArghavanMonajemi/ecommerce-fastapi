@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, join
+from sqlalchemy.orm import selectinload
 from sqlalchemy.orm import aliased
 from models import User, Product, Cart, CartItem, Address
 from schemas import UserCreate, UserUpdate, ProductCreate, ProductUpdate, CartCreate, CartUpdate, CartItemCreate, \
@@ -14,17 +15,17 @@ from utils.enums import CartStatus
 
 
 async def get_user_by_username(db: AsyncSession, username: str):
-    result = await db.execute(select(User).where(User.username == username))
+    result = await db.execute(select(User).options(selectinload(User.addresses)).where(User.username == username))
     return result.scalars().first()
 
 
 async def get_user_by_email(db: AsyncSession, email: str):
-    result = await db.execute(select(User).where(User.email == email))
+    result = await db.execute(select(User).options(selectinload(User.addresses)).where(User.email == email))
     return result.scalars().first()
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int):
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).options(selectinload(User.addresses)).where(User.id == user_id))
     return result.scalars().first()
 
 
@@ -94,7 +95,7 @@ async def get_product_by_id(db: AsyncSession, product_id: int):
 
 async def get_all_product(db: AsyncSession):
     result = await db.execute(select(Product))
-    return result.scalars().all
+    return result.scalars().all()
 
 
 async def get_all_product_by_name(db: AsyncSession, name: str):
@@ -129,32 +130,32 @@ async def delete_product(db: AsyncSession, product_id: int):
             return False
         await db.delete(product)
         await db.commit()
+        return True
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete the product. ERROR:" + str(e))
 
 
 async def get_cart_item(db: AsyncSession, cart_item_id: int):
-    cart_item = await db.execute(select(CartItem).where(CartItem.id == cart_item_id))
+    cart_item = await db.execute(select(CartItem).options(selectinload(CartItem.product)).where(CartItem.id == cart_item_id))
     return cart_item.scalars().first()
 
 
 async def get_cart_cart_items(db: AsyncSession, cart_id: int):
-    items = await db.execute(select(CartItem).where(CartItem.cart_id == cart_id))
+    items = await db.execute(select(CartItem).options(selectinload(CartItem.product)).where(CartItem.cart_id == cart_id))
     return items.scalars().all()
 
 
 async def update_cart_item(db: AsyncSession, cart_item_update: CartItemUpdate, cart_item_id: int):
     try:
         item = await get_cart_item(db, cart_item_id)
-        if item is None:
-            return False
-        update_data = cart_item_update.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(item, key, value)
-        await db.commit()
-        await db.refresh(item)
-        return True
+        if item is not None:
+            update_data = cart_item_update.model_dump(exclude_unset=True)
+            for key, value in update_data.items():
+                setattr(item, key, value)
+            await db.commit()
+            await db.refresh(item)
+        return item
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update the cart item. ERROR:" + str(e))
@@ -192,44 +193,45 @@ async def delete_cart_item(db: AsyncSession, cart_item_id: int):
 
 async def create_cart(db: AsyncSession, cart: CartCreate):
     try:
-        open_cart = await select_with_filter(db, Cart, Cart.status == CartStatus.OPEN, Cart.user_id == cart.user_id)
-        if open_cart is None:
-            db_cart = Cart(user_id=cart.user_id, status=cart.status)
-            db.add(db_cart)
-            await db.commit()
-            await db.refresh(db_cart)
-            return db_cart
-        else:
-            return open_cart
+        db_cart = Cart(user_id=cart.user_id, status=cart.status, created_at=datetime.now(),
+                       total_price=cart.total_price)
+        db.add(db_cart)
+        await db.commit()
+        await db.refresh(db_cart)
+        return db_cart
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create the cart. ERROR:" + str(e))
 
 
 async def get_cart(db: AsyncSession, cart_id: int):
-    cart = await db.execute(select(Cart).where(Cart.id == cart_id))
+    cart = await db.execute(select(Cart).options(selectinload(Cart.items).selectinload(CartItem.product)).where(Cart.id == cart_id))
     return cart.scalars().first()
 
 
 async def get_user_carts(db: AsyncSession, user_id: int):
-    carts = await db.execute(select(Cart).where(Cart.user_id == user_id))
+    carts = await db.execute(select(Cart).options(selectinload(Cart.items).selectinload(CartItem.product)).where(Cart.user_id == user_id))
     return carts.scalars().all()
 
+async def get_user_open_cart(db: AsyncSession, user_id: int):
+    cart = await db.execute(select(Cart).options(selectinload(Cart.items).selectinload(CartItem.product)).where(Cart.user_id == user_id,Cart.status == CartStatus.OPEN))
+    return cart.scalars().first()
 
 async def update_cart(db: AsyncSession, cart_update: CartUpdate, cart_id: int):
     try:
         cart = await get_cart(db, cart_id)
         if cart is None:
-            return False
+            return None
         update_data = cart_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(cart, key, value)
         await db.commit()
         await db.refresh(cart)
-        return True
+        return cart
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update the cart. ERROR:" + str(e))
+
 
 async def delete_cart(db: AsyncSession, cart_id: int):
     try:
@@ -263,9 +265,11 @@ async def get_address(db: AsyncSession, address_id: int):
     result = await db.execute(select(Address).where(Address.id == address_id))
     return result.scalars().first()
 
+
 async def get_user_addresses(db: AsyncSession, user_id: int):
-    result = await db.execute(select(Address).join(User,User.id == Address.user_id))
+    result = await db.execute(select(Address).join(User, User.id == Address.user_id))
     return result.scalars().all()
+
 
 async def get_user_all_address(db: AsyncSession, user_id: int):
     result = await db.execute(select(Address).where(Address.user_id == user_id))

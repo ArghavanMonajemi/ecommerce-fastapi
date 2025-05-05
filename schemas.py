@@ -95,13 +95,13 @@ class CartItemUpdate(BaseModel):
 class CartCreate(BaseModel):
     user_id: int
     status: CartStatus = CartStatus.OPEN
-    items: List[CartItemCreate]
-    created_at: datetime
     total_price: float
 
 
 class CartOut(CartCreate):
     id: int
+    items: List[CartItemCreate]
+    created_at: datetime
 
     class Config:
         from_attributes = True

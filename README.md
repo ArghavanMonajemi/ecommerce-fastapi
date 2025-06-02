@@ -28,8 +28,7 @@ A scalable, async backend API for an e-commerce application, built using **FastA
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/ecommerce-api.git
-cd ecommerce-api
+git clone https://github.com/ArghavanMonajemi/ecommerce-fastapi.git
 ```
 ### 2. Configure Environment Variables
 Create a .env file:
@@ -66,7 +65,7 @@ Use the /token endpoint to obtain a JWT. In Swagger UI, click Authorize, and pro
 - Leave client_id and client_secret empty unless you’re using OAuth clients
 
 ## 📁 Project Structure
-```bash
+```
 .
 ├── app/
 │   ├── routers/
